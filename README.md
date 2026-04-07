@@ -147,7 +147,7 @@ docker build -t notes-api .
 Run the container:
 docker run -d -p 5000:5000 notes-api
 
----
+
 
 ## 📈 Future Improvements
 
@@ -157,10 +157,8 @@ docker run -d -p 5000:5000 notes-api
 * Deploy with HTTPS and domain name
 * Use AWS RDS for managed database
 
----
 
-## 🏆 Summary
 
-This project demonstrates the ability to build and deploy a full backend system with authentication, database integration, and cloud infrastructure.
 
----
+
+
