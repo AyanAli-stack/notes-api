@@ -7,13 +7,14 @@ import bcrypt
 app = Flask(__name__)
 load_dotenv()
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
-app.config["SECRET_KEY"] = "supersecretkey"
+
 
 
 conn = psycopg2.connect(
-    dbname=os.getenv("DB_NAME"),
-    user=os.getenv("DB_USER"),
-    host=os.getenv("DB_HOST"),
+    dbname="notes_db",
+    user="ayanali123",
+    password="123456",
+    host="postgres-db"
 )
 
 
@@ -99,7 +100,10 @@ def get_notes():
         page = int(page)
         limit = int(limit)
         offset = (page -1) *limit
-        cur.execute("SELECT * FROM notes LIMIT %s OFFSET %s",(limit, offset))
+        cur.execute(
+        "SELECT * FROM notes WHERE user_id = %s LIMIT %s OFFSET %s",
+        (user_id, limit, offset)
+        )
     else:
         print("USER ID USED IN QUERY:", user_id)
         cur.execute("SELECT * FROM notes WHERE user_id = %s",(user_id,))
@@ -154,18 +158,33 @@ def update_notes(note_id):
     cur = conn.cursor()
     data = request.json
 
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return jsonify({"error": "Token missing"}), 401
+
+    parts = auth_header.split(" ")
+    if len(parts) != 2 or parts[0] != "Bearer":
+        return jsonify({"error": "Invalid token format"}), 401
+
+    token = parts[1]
+    decoded = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+    user_id = int(decoded["user_id"])
+
+    
     if not data or "content" not in data or not data["content"]:
         return jsonify({"error": "content field is required"}), 400
 
+    
     cur.execute(
-        "UPDATE notes SET content=%s WHERE id=%s RETURNING id",
-        (data["content"], note_id)
+        "UPDATE notes SET content=%s WHERE id=%s AND user_id=%s RETURNING id",
+        (data["content"], note_id, user_id)
     )
 
     result = cur.fetchone()
 
     if not result:
-        return jsonify({"error": "Note not found"}), 404
+        return jsonify({"error": "Note not found or not yours"}), 404
 
     conn.commit()
 
@@ -179,20 +198,33 @@ def update_notes(note_id):
 def delete_note(note_id):
     cur = conn.cursor()
 
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return jsonify({"error": "Token missing"}), 401
+
+    parts = auth_header.split(" ")
+    if len(parts) != 2 or parts[0] != "Bearer":
+        return jsonify({"error": "Invalid token format"}), 401
+
+    token = parts[1]
+    decoded = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+    user_id = int(decoded["user_id"])
+
+    
     cur.execute(
-        "DELETE FROM notes WHERE id=%s RETURNING id",
-        (note_id,)
+        "DELETE FROM notes WHERE id=%s AND user_id=%s RETURNING id",
+        (note_id, user_id)
     )
 
     result = cur.fetchone()
 
     if not result:
-        return jsonify({"error": "Note not found"}), 404
+        return jsonify({"error": "Note not found or not yours"}), 404
 
     conn.commit()
 
     return jsonify({"message": "Note deleted successfully!"}), 200
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=5000, debug=True)
